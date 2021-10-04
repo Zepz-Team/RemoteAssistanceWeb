@@ -12,23 +12,38 @@ var localTracks = {
   audioTrack: null
 };
 
-const BufferLength = 5;
+const BufferLength = 10;
 
-var Point = {
-  x: null,
-  y: null
-};
+class Point {
+  constructor(){
+  this.x= null, this.y = null;
+  } 
+
+  CopyPoint(myPoint){
+      this.x= myPoint.x, this.y = myPoint.y;
+  }
+
+  IsEqual(myPoint)
+  {
+    if (this.x == myPoint.x && this.y == myPoint.y)
+    {
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+  }
+}
 
 var listOfPoints = [];
 
 var isMouseDown = false;
 
-var lastPos = {
-  x: -1,
-  y: -1
-}
+var lastPos = new Point();
 
 var remoteUsers = [];
+
 // Agora client options
 var options = {
   appid: null,
@@ -66,15 +81,7 @@ $("#join-form").submit(async function (e) {
       $("#success-alert").css("display", "block");
     }
 
-    rtm.init(options.appid);
-    rtm.login(options.uid.toString(), '').then(() => {
-     console.log('login')
-     rtm._logined = true
-     console.log('Login: ' + options.uid);
-    }).catch((err) => {
-     console.log(err)
-   })
-
+    InitializeAndLoginRTMClient();
 
     //const channel = this.clientRTM.createChannel(options.channel);
     //  this.subscribeChannelEvents(options.channel);
@@ -90,6 +97,21 @@ $("#join-form").submit(async function (e) {
 $("#leave").click(function (e) {
   leave();
 })
+
+function InitializeAndLoginRTMClient() {
+
+  //Initialize RTM Client
+  rtm.init(options.appid);
+
+  //Login into RTM Client
+  rtm.login(options.uid.toString(), '').then(() => {
+    console.log('login');
+    rtm._logined = true;
+    console.log('Login: ' + options.uid);
+  }).catch((err) => {
+    console.log(err);
+  });
+}
 
 async function join() {
 
@@ -121,21 +143,6 @@ async function join() {
   // this.clientRTM.login({ uid: this.accountName, token });
 }
 
-// function mouseMove(event) {
-//   if (isMouseDown)
-//   {    
-//     Point.x = event.clientX;
-//     Point.y = event.clientY;
-
-//     if (DistanceToLastPoint(Point) > 0.05)
-//     {
-//         lastPos = Point;
-//         //BufferSendPoints(NormalizePoint(Point));
-//         BufferSendPoints(Point);
-//     }
-//   }  
-// }
-
 function mouseMove(event) {
   if (isMouseDown)
   { 
@@ -143,26 +150,27 @@ function mouseMove(event) {
 
     event = event || window.event; // IE-ism
 
-    // If pageX/Y aren't available and clientX/Y are,
-    // calculate pageX/Y - logic taken from jQuery.
-    // (This is to support old IE)
-    // if (event.pageX == null && event.clientX != null) {
-    //     eventDoc = (event.target && event.target.ownerDocument) || document;
-    //     doc = eventDoc.documentElement;
-    //     body = eventDoc.body;
+    //If pageX/Y aren't available and clientX/Y are,
+    //calculate pageX/Y - logic taken from jQuery.
+    //(This is to support old IE)
+    if (event.pageX == null && event.clientX != null) {
+        eventDoc = (event.target && event.target.ownerDocument) || document;
+        doc = eventDoc.documentElement;
+        body = eventDoc.body;
 
-    //     event.pageX = event.clientX +
-    //       (doc && doc.scrollLeft || body && body.scrollLeft || 0) -
-    //       (doc && doc.clientLeft || body && body.clientLeft || 0);
-    //     event.pageY = event.clientY +
-    //       (doc && doc.scrollTop  || body && body.scrollTop  || 0) -
-    //       (doc && doc.clientTop  || body && body.clientTop  || 0 );
-    // }
+        event.pageX = event.clientX +
+          (doc && doc.scrollLeft || body && body.scrollLeft || 0) -
+          (doc && doc.clientLeft || body && body.clientLeft || 0);
+        event.pageY = event.clientY +
+          (doc && doc.scrollTop  || body && body.scrollTop  || 0) -
+          (doc && doc.clientTop  || body && body.clientTop  || 0 );
+    }
 
-    // Use event.pageX / event.pageY here
-    Point.x = event.clientX;
-    Point.y = event.clientY;    
-    console.log('Client: ' + Point.x + ' , ' + Point.y);
+    // Use event.clientX / event.clientY here
+    var myPoint = new Point();
+    myPoint.x = event.clientX;
+    myPoint.y = event.clientY;    
+    console.log('Client: ' + myPoint.x + ' , ' + myPoint.y);
 
     // Use event.pageX / event.pageY here
     //Point.x = event.pageX;
@@ -175,11 +183,10 @@ function mouseMove(event) {
     //     BufferSendPoints(Point);
     // }
 
-    if (Point.x != lastPos.x && Point.y != lastPos.y)
+    if (!myPoint.IsEqual(lastPos))
     {
-      lastPos.x = Point.x;
-      lastPos.y = Point.y;
-      BufferSendPoints(NormalizePoint(Point));
+      lastPos.CopyPoint(myPoint);
+      BufferSendPoints(NormalizePoint(myPoint));
     }    
   }
 }
@@ -188,10 +195,9 @@ function NormalizePoint(point)
 {
   var rmVideoId = 'video_track-video-'+ remoteUsers.at(0).key;
   var remoteVideoPosition = document.getElementById(rmVideoId).getBoundingClientRect();
-  var normalizedPt = {
-    x: -1,
-    y: -1
-  }
+
+  var normalizedPt = new Point();
+  
   //console.log('Event: ' + point.x + ' , ' + point.y);  
   //console.log(remoteVideoPosition);  
   //normalizedPt.x = ((point.x - 418 - 75)/1005.0).toFixed(2);
@@ -258,6 +264,8 @@ function SendDrawing()
 
     rtm.sendPeerMessage(jsonString,   remoteUsers.at(0).key);
 
+    console.log("Point(s) sent to remote user")
+
     listOfPoints = [];
 }
 ////////////////Agora RTM Changes///////////////////
@@ -285,6 +293,7 @@ async function leave() {
   $("#leave").attr("disabled", true);
   console.log("client leaves channel success");
 
+  //Log out from RTM client
   rtm.logout();
 }
 
@@ -302,6 +311,7 @@ async function subscribe(user, mediaType) {
   var playerId = "player-" + uid;
   //<div id="player-${uid}" class="player" style="transform: rotateX(180deg); height: 1920px; width: 1080px; padding-right: 75px;padding-left: 75px;"></div>
   if (mediaType === 'video') {
+    
     const player = $(`
       <div id="player-wrapper-${uid}">
         <p class="player-name">remoteUser(${uid})
@@ -310,7 +320,9 @@ async function subscribe(user, mediaType) {
         <div id="player-${uid}" class="player" style="height: 640px; width: 365px; transform: rotateY(180deg);"></div>
       </div>
     `);
+    
     $("#remote-playerlist").append(player);
+    
     $("#clear").click(function (e) {
   clear();
 })
