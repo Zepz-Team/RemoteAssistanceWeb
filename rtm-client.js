@@ -92,8 +92,24 @@ export class RTMClient extends EventEmitter {
   }
 
   async sendPeerMessage (text, peerId) {
-    console.log('sendPeerMessage', text, peerId)
-    return this.client.sendMessageToPeer({ text }, peerId.toString())
+    //console.log('sendPeerMessage', text, peerId)
+    //return this.client.sendMessageToPeer({ text }, peerId.toString())
+
+    this.client.sendMessageToPeer(
+      { text: text }, // An RtmMessage object.
+      peerId.toString(), // The uid of the remote user.
+    ).then(sendResult => {
+      if (sendResult.hasPeerReceived) {
+        // Your code for handling the event when the remote user receives the message.
+        //console.log('Remote user has received the message')
+      } else {
+        // Your code for handling the event when the message is received by the server but the remote user cannot be reached.
+        console.log('Remote user could not receive the message')
+      }
+    }).catch(error => {
+      // Your code for handling the event when the message fails to be sent.
+      console.log('EXCEPTION OCCURRED!')
+    });
   }
 
   async queryPeersOnlineStatus (memberId) {

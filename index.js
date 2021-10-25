@@ -42,7 +42,7 @@ var isMouseDown = false;
 
 var lastPos = new Point();
 
-var remoteUsers = [];
+var remoteUsers = {};
 
 // Agora client options
 var options = {
@@ -51,6 +51,10 @@ var options = {
   uid: null,
   token: null
 };
+
+const ConventionFactor = 3;
+const width = 1080.0/ConventionFactor ;//432; // Mobile width(1080) / ConventionFactor
+const height = 2260.0/ConventionFactor;//904; // Mobile height(2260) / ConventionFactor
 
 // the demo can auto join channel with params in url
 $(() => {
@@ -64,6 +68,8 @@ $(() => {
     $("#channel").val(options.channel);
     $("#join-form").submit();
   }
+
+  RegisterRTMClientEvents();
 })
 
 $("#join-form").submit(async function (e) {
@@ -97,6 +103,21 @@ $("#join-form").submit(async function (e) {
 $("#leave").click(function (e) {
   leave();
 })
+
+function RegisterRTMClientEvents() {
+  rtm.on('ConnectionStateChanged', (newState, reason) => {
+    console.log('reason', reason);    
+    if (newState === 'ABORTED') {
+      if (reason === 'REMOTE_LOGIN') {
+        console.log('You have already been kicked off!');        
+      }
+    }
+  });
+
+  rtm.on('MessageFromPeer', async (message, peerId) => {    
+      console.log('message ' + message.text + ' peerId' + peerId);      
+  });
+}
 
 function InitializeAndLoginRTMClient() {
 
@@ -193,8 +214,22 @@ function mouseMove(event) {
 
 function NormalizePoint(point)
 {
-  var rmVideoId = 'video_track-video-'+ remoteUsers.at(0).key;
-  var remoteVideoPosition = document.getElementById(rmVideoId).getBoundingClientRect();
+  // Should use kind of below method to get the desired video element but code wasn't running properly
+  // var IdStr = "video_track-video-";
+  // var ele = $('[id^="IdStr"]');  
+  // var remoteVideoPosition = ele[0].getBoundingClientRect();    
+
+  // This is not the preferred way to access video element 
+  // because this is supported by modern browsers only
+  var elements = document.querySelectorAll('[id^="video_track-video-"]');
+  if (elements == null)
+  {
+    // This is the fallback option
+      var ID = /^video_track-video-/;
+      var elements=[],els=document.getElementsByTagName('*');
+      for (var i=els.length;i--;) if (ID.test(els[i].id)) elements.push(els[i]);
+  }
+  var remoteVideoPosition = elements[0].getBoundingClientRect();    
 
   var normalizedPt = new Point();
   
@@ -203,13 +238,20 @@ function NormalizePoint(point)
   //normalizedPt.x = ((point.x - 418 - 75)/1005.0).toFixed(2);
   //normalizedPt.y = ((1920 - point.y + 260)/1920.0).toFixed(2);
   var x = point.x - remoteVideoPosition.left; //x position within the element.
-  var y = point.y - remoteVideoPosition.top;  //y position within the element.
-  //console.log('x: ' + x + ' , y:' + y); 
-  //var offset = (((remoteVideoPosition.width)/2 - x)).toFixed(2);
-  normalizedPt.x = ((x)/(remoteVideoPosition.width * 1.0)).toFixed(2);
-  //normalizedPt.x -= offset;
-  //normalizedPt.y = ((point.y + remoteVideoPosition.y)/(remoteVideoPosition.height * 1.0)).toFixed(2);
-  normalizedPt.y = ((remoteVideoPosition.height - y)/(remoteVideoPosition.height * 1.0)).toFixed(2);
+  var y = remoteVideoPosition.height - (point.y - remoteVideoPosition.top);  //y position within the element.
+
+  normalizedPt.x = x * ConventionFactor;  
+  normalizedPt.y = y * ConventionFactor;
+
+  
+  //normalizedPt.x = ((x)/(remoteVideoPosition.width * 1.0)).toFixed(2);  
+  //normalizedPt.y = ((remoteVideoPosition.height - y)/(remoteVideoPosition.height * 1.0)).toFixed(2);
+
+  //Converting screen points to viewpoints
+  //normalizedPt.x = x / remoteVideoPosition.width;
+  //normalizedPt.y = y / remoteVideoPosition.height;
+
+  console.log('Normalized Points: x= ' + normalizedPt.x + ' , y=' + normalizedPt.y); 
   return normalizedPt;
 }
 
@@ -262,7 +304,9 @@ function SendDrawing()
 
     var jsonString = JSON.stringify(dm);
 
-    rtm.sendPeerMessage(jsonString,   remoteUsers.at(0).key);
+   // rtm.sendPeerMessage(jsonString,   remoteUsers[0].key);
+    //rtm.sendPeerMessage(jsonString,   Object.keys(remoteUsers)[0]);
+    rtm.sendPeerMessage(jsonString, "LocalUser");
 
     console.log("Point(s) sent to remote user")
 
@@ -282,7 +326,7 @@ async function leave() {
   }
 
   // remove remote users and player views
-  remoteUsers = [];
+  remoteUsers = {};
   $("#remote-playerlist").html("");
 
   // leave the channel
@@ -300,7 +344,7 @@ async function leave() {
 async function clear() {
   var jsonString = "{\"clear\": true}";       
 
-  rtm.sendPeerMessage(jsonString,   remoteUsers.at(0).key);
+  rtm.sendPeerMessage(jsonString, "LocalUser");
 }
 
 async function subscribe(user, mediaType) {
@@ -317,7 +361,7 @@ async function subscribe(user, mediaType) {
         <p class="player-name">remoteUser(${uid})
         <button id="clear" type="button" class="btn btn-primary btn-sm" style="float: center;">Clear</button>
         </p>        
-        <div id="player-${uid}" class="player" style="height: 640px; width: 365px; transform: rotateY(180deg);"></div>
+        <div id="player-${uid}" class="player" style="height: ${height}px; width: ${width}px; transform: rotateY(180deg);"></div>
       </div>
     `);
     
@@ -344,11 +388,11 @@ async function subscribe(user, mediaType) {
 
 function handleUserPublished(user, mediaType) {
   const id = user.uid;
-  //remoteUsers[id] = user;
-  remoteUsers.push({
-    key: id,
-    value: user
-  });
+  remoteUsers[id] = user;
+  // remoteUsers.push({
+  //   key: id,
+  //   value: user
+  // });
   subscribe(user, mediaType);
 
   //rtm.sendPeerMessage('Hello', id.toString());
@@ -358,5 +402,14 @@ function handleUserPublished(user, mediaType) {
 function handleUserUnpublished(user) {
   const id = user.uid;
   delete remoteUsers[id];
+  //remoteUsers = [];
+  //RemoveItemFromRemoteUsersArray(user.uid);
   $(`#player-wrapper-${id}`).remove();
 }
+function RemoveItemFromRemoteUsersArray(id) {
+  const index = remoteUsers.indexOf(id.toString());
+  if (index > -1) {
+    remoteUsers.splice(index, 1);
+  }
+}
+
