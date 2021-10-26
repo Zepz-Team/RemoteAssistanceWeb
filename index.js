@@ -52,9 +52,9 @@ var options = {
   token: null
 };
 
-const ConventionFactor = 3;
-const width = 1080.0/ConventionFactor ;//432; // Mobile width(1080) / ConventionFactor
-const height = 2260.0/ConventionFactor;//904; // Mobile height(2260) / ConventionFactor
+const ConventionFactor = 2.5;
+const width = 432; // Mobile width(1080) / ConventionFactor
+const height = 936; // Mobile height(2340) / ConventionFactor
 
 // the demo can auto join channel with params in url
 $(() => {
